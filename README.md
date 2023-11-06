@@ -1,5 +1,5 @@
-# Remove-Logos-and-Objects
-Project 2.
+# Project 2
+Remove-Logos-and-Objects.
 
 # Team:
 Lương Quang Huy - 20521398
