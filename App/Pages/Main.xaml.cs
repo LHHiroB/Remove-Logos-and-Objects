@@ -184,109 +184,7 @@ namespace IOApp.Pages
                 action.Invoke();
         }
 
-        public void AddFiles(IReadOnlyList<string> paths, Action startAction = null, Action<StatusType> endAction = null, Action<List<ThumbnailItem>> itemAction = null)
-        {
-            if (Utils.Any(_status, StatusType.Loading, StatusType.Processing)) return;
-
-            Status = StatusType.Loading;
-            startAction?.Invoke();
-
-            var hasCorrupted = false;
-            var hasEpsAndCannotRead = false;
-
-            List<ThumbnailItem> items = new();
-            var coreCount = Environment.ProcessorCount;
-            object locked = new();
-
-            var start = FileItems.Count == 0;
-
-            IProgress<StatusType> progress = new Progress<StatusType>(status =>
-            {
-                if (status == StatusType.Loaded)
-                {
-                    if (hasEpsAndCannotRead)
-                        MainWindow.Inst.ShowMissingLibDialog();
-                    else if (hasCorrupted)
-                        MainWindow.Inst.ShowMessageTeachingTip(null, string.Empty, _resourceLoader.GetString("LoadCorruptedSomeFiles"));
-                }
-
-                Status = status;
-                endAction?.Invoke(status);
-
-                if (start && FileItems.Count > 0)
-                    FileListView.SelectedIndex = 0;
-            });
-
-            IProgress<List<ThumbnailItem>> itemProgress = new Progress<List<ThumbnailItem>>(items =>
-            {
-                lock (locked)
-                {
-                    FileItems.AddRange(items);
-	                itemAction?.Invoke(items);
-                }
-            });
-
-            _ = Task.Run(() =>
-            {
-                try
-                {
-                    var packages = paths.Chunk(256);
-
-                    foreach (var package in packages)
-                    {
-                        var pathChunksPerPackage = package.Chunk(coreCount);
-
-                        lock (locked)
-                        {
-                            items.Clear();
-                        }
-
-                        foreach (var pathChunks in pathChunksPerPackage)
-                        {
-                            Parallel.ForEach(pathChunks, path =>
-                            {
-                                try
-                                {
-                                    var isFilePath = Utils.IsFilePath(path);
-                                    if (isFilePath.GetValueOrDefault(false) && !FileItems.Any(i => i.InputFilePath == path))
-                                    {
-                                        var imageMeta = ImageMagickUtils.GetMagickImageMeta(path);
-
-                                        if (Profile.IsAcceptedInputFormat(imageMeta?.Format))
-                                        {
-                                            lock (locked)
-                                            {
-                                                items.Add(new() { InputInfo = new(path) });
-                                            }
-                                        }
-                                        else throw new();
-                                    }
-                                }
-                                catch (MissingLibException mle)
-                                {
-                                    if (mle.Message == "eps")
-                                        hasEpsAndCannotRead = true;
-                                    else
-                                        hasCorrupted = true;
-                                }
-                                catch (Exception)
-                                {
-                                    hasCorrupted = true;
-                                }
-                            });
-                        }
-
-                        itemProgress.Report(items);
-                    }
-
-                    progress.Report(StatusType.Loaded);
-                }
-                catch (Exception)
-                {
-                    progress.Report(StatusType.LoadFailed);
-                }
-            });
-        }
+       /// alooo
 
         private void RefreshPreviewBox()
         {
@@ -599,6 +497,111 @@ namespace IOApp.Pages
                     MainWindow.Inst.ShowMissingLibDialog();
             }
             catch { }
+        }
+
+        //
+        public void AddFiles(IReadOnlyList<string> paths, Action startAction = null, Action<StatusType> endAction = null, Action<List<ThumbnailItem>> itemAction = null)
+        {
+            if (Utils.Any(_status, StatusType.Loading, StatusType.Processing)) return;
+
+            Status = StatusType.Loading;
+            startAction?.Invoke();
+
+            var hasCorrupted = false;
+            var hasEpsAndCannotRead = false;
+
+            List<ThumbnailItem> items = new();
+            var coreCount = Environment.ProcessorCount;
+            object locked = new();
+
+            var start = FileItems.Count == 0;
+
+            IProgress<StatusType> progress = new Progress<StatusType>(status =>
+            {
+                if (status == StatusType.Loaded)
+                {
+                    if (hasEpsAndCannotRead)
+                        MainWindow.Inst.ShowMissingLibDialog();
+                    else if (hasCorrupted)
+                        MainWindow.Inst.ShowMessageTeachingTip(null, string.Empty, _resourceLoader.GetString("LoadCorruptedSomeFiles"));
+                }
+
+                Status = status;
+                endAction?.Invoke(status);
+
+                if (start && FileItems.Count > 0)
+                    FileListView.SelectedIndex = 0;
+            });
+
+            IProgress<List<ThumbnailItem>> itemProgress = new Progress<List<ThumbnailItem>>(items =>
+            {
+                lock (locked)
+                {
+                    FileItems.AddRange(items);
+                    itemAction?.Invoke(items);
+                }
+            });
+
+            _ = Task.Run(() =>
+            {
+                try
+                {
+                    var packages = paths.Chunk(256);
+
+                    foreach (var package in packages)
+                    {
+                        var pathChunksPerPackage = package.Chunk(coreCount);
+
+                        lock (locked)
+                        {
+                            items.Clear();
+                        }
+
+                        foreach (var pathChunks in pathChunksPerPackage)
+                        {
+                            Parallel.ForEach(pathChunks, path =>
+                            {
+                                try
+                                {
+                                    var isFilePath = Utils.IsFilePath(path);
+                                    if (isFilePath.GetValueOrDefault(false) && !FileItems.Any(i => i.InputFilePath == path))
+                                    {
+                                        var imageMeta = ImageMagickUtils.GetMagickImageMeta(path);
+
+                                        if (Profile.IsAcceptedInputFormat(imageMeta?.Format))
+                                        {
+                                            lock (locked)
+                                            {
+                                                items.Add(new() { InputInfo = new(path) });
+                                            }
+                                        }
+                                        else throw new();
+                                    }
+                                }
+                                catch (MissingLibException mle)
+                                {
+                                    if (mle.Message == "eps")
+                                        hasEpsAndCannotRead = true;
+                                    else
+                                        hasCorrupted = true;
+                                }
+                                catch (Exception)
+                                {
+                                    hasCorrupted = true;
+                                }
+                            });
+                        }
+
+                        itemProgress.Report(items);
+                    }
+
+                    progress.Report(StatusType.Loaded);
+                }
+                catch (Exception)
+                {
+                    progress.Report(StatusType.LoadFailed);
+                }
+            });
         }
 
         public async void OpenInputPicker(Action startAction = null, Action<StatusType> endAction = null, Action<List<ThumbnailItem>> itemAction = null)
