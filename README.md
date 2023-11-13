@@ -8,6 +8,6 @@ Remove-Logos-and-Objects.
 # Descriptions:
 Image Processing Application Logo and Object Removal uses OpenCv graphics technology with WinUI language.
 
-# Technology
+# Technology:
 - WinUI 3
 - OpenCV

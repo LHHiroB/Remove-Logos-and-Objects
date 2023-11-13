@@ -16,7 +16,7 @@
 
     <Grid Width="320">
         <StackPanel Padding="15" Spacing="15">
-            <TextBlock Grid.Column="1" Text="{coreLibs:SRE K=Save}" FontSize="20" FontWeight="Bold"/>
+            <TextBlock Grid.Column="1" Text="Save" FontSize="20" FontWeight="Bold"/>
 
             <Grid Grid.Row="1" ColumnDefinitions="160,*" RowSpacing="10" ColumnSpacing="15" VerticalAlignment="Stretch" HorizontalAlignment="Stretch">
 
@@ -26,13 +26,13 @@
 
                 <StackPanel Grid.Column="1" Spacing="10">
                     <StackPanel Spacing="5">
-                        <TextBlock Text="{coreLibs:SRE K=Features_Width}" FontSize="11" FontWeight="Bold"/>
+                        <TextBlock Text="Width" FontSize="11" FontWeight="Bold"/>
                         <TextBox Name="WidthTextBox" HorizontalAlignment="Stretch"
                                  LostFocus="SizeTextBox_LostFocus" BeforeTextChanging="SizeTextBox_BeforeTextChanging" TextChanging="SizeTextBox_TextChanging"                    
                                  IsEnabled="{Binding Status, ConverterParameter=Processing, Converter={StaticResource EnumComparisonToBoolInverseConverter}}"/>
                     </StackPanel>
                     <StackPanel Spacing="5">
-                        <TextBlock Text="{coreLibs:SRE K=Features_Height}" FontSize="11" FontWeight="Bold"/>
+                        <TextBlock Text="Height" FontSize="11" FontWeight="Bold"/>
                         <TextBox Name="HeightTextBox" HorizontalAlignment="Stretch"
                                  LostFocus="SizeTextBox_LostFocus" BeforeTextChanging="SizeTextBox_BeforeTextChanging" TextChanging="SizeTextBox_TextChanging"                    
                                  IsEnabled="{Binding Status, ConverterParameter=Processing, Converter={StaticResource EnumComparisonToBoolInverseConverter}}"/>
@@ -40,7 +40,7 @@
                 </StackPanel>
             </Grid>
 
-            <Button Content="{coreLibs:SRE K=Save}" HorizontalAlignment="Center" Click="SaveButton_Click"
+            <Button Content="Save" HorizontalAlignment="Center" Click="SaveButton_Click"
                     IsEnabled="{Binding Status, ConverterParameter=Processing, Converter={StaticResource EnumComparisonToBoolInverseConverter}}"/>
         </StackPanel>
 

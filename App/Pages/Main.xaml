@@ -13,13 +13,11 @@
     KeyboardAcceleratorPlacementMode="Hidden"
 >
     <Page.Resources>
-        <coreLibs:IndexMarginConverter x:Key="IndexMarginConverter"/>
         <coreLibs:IsNullConverter x:Key="IsNullConverter"/>
         <coreLibs:EnumComparisonToBoolConverter x:Key="EnumComparisonToBoolConverter"/>
         <coreLibs:EnumComparisonToBoolInverseConverter x:Key="EnumComparisonToBoolInverseConverter"/>
         <coreLibs:FileSizeToSizeStringConverter x:Key="FileSizeToSizeStringConverter"/>
         <coreLibs:FilePathConverter x:Key="FilePathConverter"/>
-        <coreLibs:InverseBoolConverter x:Key="InverseBoolConverter"/>
 
         <MenuFlyout x:Key="ShapeMenuFlyout" Placement="Bottom">
             <RadioMenuFlyoutItem Name="LineShapeMenuFlyoutItem" Click="ShapeButton_Click"/>
