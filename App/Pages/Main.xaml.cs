@@ -184,33 +184,111 @@ namespace IOApp.Pages
                 action.Invoke();
         }
 
-       /// alooo
-
-        private void RefreshPreviewBox()
+        public void AddFiles(IReadOnlyList<string> paths, Action startAction = null, Action<StatusType> endAction = null, Action<List<ThumbnailItem>> itemAction = null)
         {
-            PreviewBox.Visibility = Visibility.Visible;
+            if (Utils.Any(_status, StatusType.Loading, StatusType.Processing)) return;
 
-            System.Drawing.SizeF maxPreviewSize = new(0, 0);
+            Status = StatusType.Loading;
+            startAction?.Invoke();
 
-            maxPreviewSize = Utils.GetMaxContainSize((float)_sourceImage.Width, (float)_sourceImage.Height, (float)PreviewBox.ActualWidth, (float)PreviewBox.ActualHeight);
+            var hasCorrupted = false;
+            var hasEpsAndCannotRead = false;
 
-            PreviewImage.Width = maxPreviewSize.Width;
-            PreviewImage.Height = maxPreviewSize.Height;
+            List<ThumbnailItem> items = new();
+            var coreCount = Environment.ProcessorCount;
+            object locked = new();
 
-            CanvasDrawing.Width = maxPreviewSize.Width;
-            CanvasDrawing.Height = maxPreviewSize.Height;
+            var start = FileItems.Count == 0;
 
-            var size = new Size(CanvasDrawing.Width, CanvasDrawing.Height);
-            Cv2.Resize(_sourceImage, _canvasImage, size, (double)InterpolationFlags.LinearExact);
+            IProgress<StatusType> progress = new Progress<StatusType>(status =>
+            {
+                if (status == StatusType.Loaded)
+                {
+                    if (hasEpsAndCannotRead)
+                        MainWindow.Inst.ShowMissingLibDialog();
+                    else if (hasCorrupted)
+                        MainWindow.Inst.ShowMessageTeachingTip(null, string.Empty, _resourceLoader.GetString("LoadCorruptedSomeFiles"));
+                }
 
-            System.Drawing.Bitmap bitmap = MatToBitmap(_canvasImage);
-            var bitmapImage = Utils.ConvertBitmapToBitmapImage(bitmap);
-            PreviewImage.Source = _currentBitmapImage = bitmapImage;
+                Status = status;
+                endAction?.Invoke(status);
 
-            _imageHistory.Add(bitmap);
-            _maskHistory.Add(new Mat(_canvasImage.Size(), MatType.CV_8U, -1));
-            _currentRevision = 0;
+                if (start && FileItems.Count > 0)
+                    FileListView.SelectedIndex = 0;
+            });
+
+            IProgress<List<ThumbnailItem>> itemProgress = new Progress<List<ThumbnailItem>>(items =>
+            {
+                lock (locked)
+                {
+                    FileItems.AddRange(items);
+	                itemAction?.Invoke(items);
+                }
+            });
+
+            _ = Task.Run(() =>
+            {
+                try
+                {
+                    var packages = paths.Chunk(256);
+
+                    foreach (var package in packages)
+                    {
+                        var pathChunksPerPackage = package.Chunk(coreCount);
+
+                        lock (locked)
+                        {
+                            items.Clear();
+                        }
+
+                        foreach (var pathChunks in pathChunksPerPackage)
+                        {
+                            Parallel.ForEach(pathChunks, path =>
+                            {
+                                try
+                                {
+                                    var isFilePath = Utils.IsFilePath(path);
+                                    if (isFilePath.GetValueOrDefault(false) && !FileItems.Any(i => i.InputFilePath == path))
+                                    {
+                                        var imageMeta = ImageMagickUtils.GetMagickImageMeta(path);
+
+                                        if (Profile.IsAcceptedInputFormat(imageMeta?.Format))
+                                        {
+                                            lock (locked)
+                                            {
+                                                items.Add(new() { InputInfo = new(path) });
+                                            }
+                                        }
+                                        else throw new();
+                                    }
+                                }
+                                catch (MissingLibException mle)
+                                {
+                                    if (mle.Message == "eps")
+                                        hasEpsAndCannotRead = true;
+                                    else
+                                        hasCorrupted = true;
+                                }
+                                catch (Exception)
+                                {
+                                    hasCorrupted = true;
+                                }
+                            });
+                        }
+
+                        itemProgress.Report(items);
+                    }
+
+                    progress.Report(StatusType.Loaded);
+                }
+                catch (Exception)
+                {
+                    progress.Report(StatusType.LoadFailed);
+                }
+            });
         }
+
+        //
 
         #region DRAWING_CANVAS
 
@@ -499,111 +577,6 @@ namespace IOApp.Pages
             catch { }
         }
 
-        //
-        public void AddFiles(IReadOnlyList<string> paths, Action startAction = null, Action<StatusType> endAction = null, Action<List<ThumbnailItem>> itemAction = null)
-        {
-            if (Utils.Any(_status, StatusType.Loading, StatusType.Processing)) return;
-
-            Status = StatusType.Loading;
-            startAction?.Invoke();
-
-            var hasCorrupted = false;
-            var hasEpsAndCannotRead = false;
-
-            List<ThumbnailItem> items = new();
-            var coreCount = Environment.ProcessorCount;
-            object locked = new();
-
-            var start = FileItems.Count == 0;
-
-            IProgress<StatusType> progress = new Progress<StatusType>(status =>
-            {
-                if (status == StatusType.Loaded)
-                {
-                    if (hasEpsAndCannotRead)
-                        MainWindow.Inst.ShowMissingLibDialog();
-                    else if (hasCorrupted)
-                        MainWindow.Inst.ShowMessageTeachingTip(null, string.Empty, _resourceLoader.GetString("LoadCorruptedSomeFiles"));
-                }
-
-                Status = status;
-                endAction?.Invoke(status);
-
-                if (start && FileItems.Count > 0)
-                    FileListView.SelectedIndex = 0;
-            });
-
-            IProgress<List<ThumbnailItem>> itemProgress = new Progress<List<ThumbnailItem>>(items =>
-            {
-                lock (locked)
-                {
-                    FileItems.AddRange(items);
-                    itemAction?.Invoke(items);
-                }
-            });
-
-            _ = Task.Run(() =>
-            {
-                try
-                {
-                    var packages = paths.Chunk(256);
-
-                    foreach (var package in packages)
-                    {
-                        var pathChunksPerPackage = package.Chunk(coreCount);
-
-                        lock (locked)
-                        {
-                            items.Clear();
-                        }
-
-                        foreach (var pathChunks in pathChunksPerPackage)
-                        {
-                            Parallel.ForEach(pathChunks, path =>
-                            {
-                                try
-                                {
-                                    var isFilePath = Utils.IsFilePath(path);
-                                    if (isFilePath.GetValueOrDefault(false) && !FileItems.Any(i => i.InputFilePath == path))
-                                    {
-                                        var imageMeta = ImageMagickUtils.GetMagickImageMeta(path);
-
-                                        if (Profile.IsAcceptedInputFormat(imageMeta?.Format))
-                                        {
-                                            lock (locked)
-                                            {
-                                                items.Add(new() { InputInfo = new(path) });
-                                            }
-                                        }
-                                        else throw new();
-                                    }
-                                }
-                                catch (MissingLibException mle)
-                                {
-                                    if (mle.Message == "eps")
-                                        hasEpsAndCannotRead = true;
-                                    else
-                                        hasCorrupted = true;
-                                }
-                                catch (Exception)
-                                {
-                                    hasCorrupted = true;
-                                }
-                            });
-                        }
-
-                        itemProgress.Report(items);
-                    }
-
-                    progress.Report(StatusType.Loaded);
-                }
-                catch (Exception)
-                {
-                    progress.Report(StatusType.LoadFailed);
-                }
-            });
-        }
-
         public async void OpenInputPicker(Action startAction = null, Action<StatusType> endAction = null, Action<List<ThumbnailItem>> itemAction = null)
         {
             if (Utils.Any(_status, StatusType.Loading, StatusType.Processing)) return;
@@ -642,6 +615,32 @@ namespace IOApp.Pages
                 }
                 catch { }
             }
+        }
+
+        private void RefreshPreviewBox()
+        {
+            PreviewBox.Visibility = Visibility.Visible;
+
+            System.Drawing.SizeF maxPreviewSize = new(0, 0);
+
+            maxPreviewSize = Utils.GetMaxContainSize((float)_sourceImage.Width, (float)_sourceImage.Height, (float)PreviewBox.ActualWidth, (float)PreviewBox.ActualHeight);
+
+            PreviewImage.Width = maxPreviewSize.Width;
+            PreviewImage.Height = maxPreviewSize.Height;
+
+            CanvasDrawing.Width = maxPreviewSize.Width;
+            CanvasDrawing.Height = maxPreviewSize.Height;
+
+            var size = new Size(CanvasDrawing.Width, CanvasDrawing.Height);
+            Cv2.Resize(_sourceImage, _canvasImage, size, (double)InterpolationFlags.LinearExact);
+
+            System.Drawing.Bitmap bitmap = MatToBitmap(_canvasImage);
+            var bitmapImage = Utils.ConvertBitmapToBitmapImage(bitmap);
+            PreviewImage.Source = _currentBitmapImage = bitmapImage;
+
+            _imageHistory.Add(bitmap);
+            _maskHistory.Add(new Mat(_canvasImage.Size(), MatType.CV_8U, -1));
+            _currentRevision = 0;
         }
 
         private void FileListView_SelectionChanged(object sender, SelectionChangedEventArgs e)
