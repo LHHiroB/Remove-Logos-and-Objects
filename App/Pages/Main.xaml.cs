@@ -288,7 +288,31 @@ namespace IOApp.Pages
             });
         }
 
-        //
+        private void RefreshPreviewBox()
+        {
+            PreviewBox.Visibility = Visibility.Visible;
+
+            System.Drawing.SizeF maxPreviewSize = new(0, 0);
+
+            maxPreviewSize = Utils.GetMaxContainSize((float)_sourceImage.Width, (float)_sourceImage.Height, (float)PreviewBox.ActualWidth, (float)PreviewBox.ActualHeight);
+
+            PreviewImage.Width = maxPreviewSize.Width;
+            PreviewImage.Height = maxPreviewSize.Height;
+
+            CanvasDrawing.Width = maxPreviewSize.Width;
+            CanvasDrawing.Height = maxPreviewSize.Height;
+
+            var size = new Size(CanvasDrawing.Width, CanvasDrawing.Height);
+            Cv2.Resize(_sourceImage, _canvasImage, size, (double)InterpolationFlags.LinearExact);
+
+            System.Drawing.Bitmap bitmap = MatToBitmap(_canvasImage);
+            var bitmapImage = Utils.ConvertBitmapToBitmapImage(bitmap);
+            PreviewImage.Source = _currentBitmapImage = bitmapImage;
+
+            _imageHistory.Add(bitmap);
+            _maskHistory.Add(new Mat(_canvasImage.Size(), MatType.CV_8U, -1));
+            _currentRevision = 0;
+        }
 
         #region DRAWING_CANVAS
 
@@ -615,32 +639,6 @@ namespace IOApp.Pages
                 }
                 catch { }
             }
-        }
-
-        private void RefreshPreviewBox()
-        {
-            PreviewBox.Visibility = Visibility.Visible;
-
-            System.Drawing.SizeF maxPreviewSize = new(0, 0);
-
-            maxPreviewSize = Utils.GetMaxContainSize((float)_sourceImage.Width, (float)_sourceImage.Height, (float)PreviewBox.ActualWidth, (float)PreviewBox.ActualHeight);
-
-            PreviewImage.Width = maxPreviewSize.Width;
-            PreviewImage.Height = maxPreviewSize.Height;
-
-            CanvasDrawing.Width = maxPreviewSize.Width;
-            CanvasDrawing.Height = maxPreviewSize.Height;
-
-            var size = new Size(CanvasDrawing.Width, CanvasDrawing.Height);
-            Cv2.Resize(_sourceImage, _canvasImage, size, (double)InterpolationFlags.LinearExact);
-
-            System.Drawing.Bitmap bitmap = MatToBitmap(_canvasImage);
-            var bitmapImage = Utils.ConvertBitmapToBitmapImage(bitmap);
-            PreviewImage.Source = _currentBitmapImage = bitmapImage;
-
-            _imageHistory.Add(bitmap);
-            _maskHistory.Add(new Mat(_canvasImage.Size(), MatType.CV_8U, -1));
-            _currentRevision = 0;
         }
 
         private void FileListView_SelectionChanged(object sender, SelectionChangedEventArgs e)
