@@ -11,3 +11,4 @@ Image Processing Application Logo and Object Removal uses OpenCv graphics techno
 # Technology:
 - WinUI 3
 - OpenCV
+- Tensorflow
