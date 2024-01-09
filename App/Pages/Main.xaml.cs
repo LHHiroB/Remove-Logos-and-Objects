@@ -505,8 +505,6 @@ namespace IOApp.Pages
                         Status = StatusType.Loaded;
 
                         GC.Collect();
-
-                        _ = AskForRate.Request(true, AskForRate.TimeTest, true, 10);
                     }
                 }
                 else

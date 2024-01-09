@@ -164,8 +164,6 @@ namespace IOApp.Pages
             {
                 Utils.RevealInFileExplorer(storageFile.Path);
                 Status = status;
-
-                _ = AskForRate.Request(true, AskForRate.TimeTest, true, 2);
             });
 
             if (ImageMagickUtils.IsVectorFamily(Item.InputInfo.Format))

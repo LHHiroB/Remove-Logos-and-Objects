@@ -8,7 +8,7 @@
   IgnorableNamespaces="uap rescap">
 
   <Identity
-    Name="IOStreamCo.Ltd.UniversalImageConverter"
+    Name="Project2.RemoveLogosandObjects"
     Publisher="CN=671AC663-A793-4A03-B1E1-5D1E63B6097E"
     Version="1.0.26.0" />
 
@@ -16,7 +16,7 @@
 
   <Properties>
     <DisplayName>Universal Image Converter</DisplayName>
-    <PublisherDisplayName>IO Stream Co., Ltd</PublisherDisplayName>
+    <PublisherDisplayName>HuyAndHieu</PublisherDisplayName>
     <Logo>Images\StoreLogo.png</Logo>
   </Properties>
 
@@ -36,7 +36,7 @@
       Executable="$targetnametoken$.exe"
       EntryPoint="$targetentrypoint$">
       <uap:VisualElements
-        DisplayName="Universal Image Converter"
+        DisplayName="Remove Logos &amp; Objects"
         Description="UniversalImageConverter (Package)"
         BackgroundColor="transparent"
         Square150x150Logo="Images\Square150x150Logo.png"

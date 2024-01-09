@@ -164,8 +164,6 @@ namespace IOCore
 
                 interop.ShowShareUIForWindow(hWnd);
             }    
-            else if (tag == "RateUs")
-                _ = Launcher.LaunchUriAsync(new(Meta.URL_APP_STORE_REVIEW));
             else if (tag == "Exit")
                 Application.Current.Exit();
             else
@@ -173,20 +171,8 @@ namespace IOCore
                 var dialog = new ContentDialog() { XamlRoot = RootXamlRoot };
                 object content = null;
 
-                if (tag == "Support")
-                    content = new Support(dialog);
-                else if (tag == "Settings")
+                if (tag == "Settings")
                     content = new Settings(dialog);
-                else if (tag == "LicenseInformation")
-                    content = new LicenseInformation(dialog);
-                else if (tag == "About")
-                    content = new About(dialog);
-                else if (tag == "MoreApps")
-                {
-                    var moreApps = new MoreApps(dialog);
-                    moreApps.TryLoad();
-                    content = moreApps;
-                }
 
                 dialog.Content = content;
                 _ = await dialog.ShowAsync();

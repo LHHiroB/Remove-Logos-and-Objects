@@ -23,7 +23,6 @@ namespace IOApp
         public override XamlRoot RootXamlRoot => Root.XamlRoot;
 
         public Visibility PromotionAppVisibility { get; private set; } = Visibility.Collapsed;
-        public RangeObservableCollection<AppItem> PromotionAppItems { get; private set; } = new();
 
         public MainWindow() : base()
         {
@@ -42,17 +41,6 @@ namespace IOApp
 
         private void Root_Loaded(object sender, RoutedEventArgs e)
         {
-            IProgress<AppItem> progress = new Progress<AppItem>(i =>
-            {
-                if (i != null) PromotionAppItems.Add(i);
-                if (InAppPromotion.Inst.ReferenceAppItem != null) PromotionAppItems.Add(InAppPromotion.Inst.ReferenceAppItem);
-                if (PromotionAppItems.Count > 0)
-                {
-                    PromotionAppVisibility = Visibility.Visible;
-                    OnPropertyChanged(nameof(PromotionAppVisibility));
-                }
-            });
-            InAppPromotion.Inst.GetRandomAppItemAsync(i => { progress.Report(i); });
         }
 
         public async void ShowMissingLibDialog()
