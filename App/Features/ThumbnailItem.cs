@@ -67,6 +67,8 @@ namespace IOApp.Features
 
         private int _cacheImageLevel = 0;
 
+        public string FileName => Path.GetFileName(InputFilePath);
+
         [JsonIgnore]
         public int ThumbnailWidth { get => 160; }
         [JsonIgnore]

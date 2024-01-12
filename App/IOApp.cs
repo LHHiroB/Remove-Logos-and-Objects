@@ -12,7 +12,6 @@ namespace IOApp
             Meta.APP_INIT_SIZE = new(1200, 740);
 
             LanguageManager.LANGUAGES[LanguageManager.Culture.EnUs].IsOn = true;
-            LanguageManager.LANGUAGES[LanguageManager.Culture.JaJp].IsOn = true;
             LanguageManager.LANGUAGES[LanguageManager.Culture.ViVn].IsOn = true;
 
             ThemeManager.THEMES[ThemeManager.Theme.Dark].IsOn = true;
@@ -20,10 +19,6 @@ namespace IOApp
 
             ThemeManager.Init(app);
             LanguageManager.Init();
-
-#if DEBUG
-            StoreManager.Force = StoreManager.License.Normal;
-#endif
         }
 
         internal static void InitExt()

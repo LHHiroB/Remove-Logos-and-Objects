@@ -16,5 +16,17 @@ namespace IOCore.Libs
 
             return (ulong)span.TotalSeconds;
         }
+
+        public static DateTime UnixTimeStampToDateTime(ulong unixTimeStamp)
+        {
+            var dateTime = new DateTime(1970, 1, 1);
+            dateTime = dateTime.AddSeconds(unixTimeStamp);
+            return dateTime;
+        }
+
+        public static ulong DateTimeToUnixTimestamp(DateTime dateTime)
+        {
+            return (ulong)dateTime.ToUniversalTime().Subtract(new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc)).TotalMilliseconds;
+        }
     }
 }

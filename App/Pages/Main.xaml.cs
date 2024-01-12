@@ -22,6 +22,10 @@ using IOCore.Libs;
 using IOApp.Features;
 using IOApp.Configs;
 using Windows.UI;
+using ImageMagick;
+using System.Collections.ObjectModel;
+using Microsoft.VisualBasic;
+using Windows.Storage;
 
 namespace IOApp.Pages
 {
@@ -31,15 +35,6 @@ namespace IOApp.Pages
 
         public event PropertyChangedEventHandler PropertyChanged;
         private static readonly ResourceLoader _resourceLoader = ResourceLoader.GetForViewIndependentUse();
-
-        public enum ShapeType
-        {
-            Line,
-            Rectangle,
-            Ellipse
-        }
-
-        public Dictionary<ShapeType, Control> SHAPES;
 
         public enum StatusType
         {
@@ -128,11 +123,8 @@ namespace IOApp.Pages
 
         private FileOpenPicker _inputFilesPicker;
 
+        public List<ThumbnailItem> SOURCE_FILE_ITEMS = new();
         public RangeObservableCollection<ThumbnailItem> FileItems { get; private set; } = new();
-
-        private ThumbnailItem _currentItem;
-        public ThumbnailItem CurrentItem { get => _currentItem; set { _currentItem = value; PropertyChanged?.Invoke(this, new(nameof(CurrentItem))); } }
-        private BitmapImage _currentBitmapImage;
 
         private string _inputTypes = string.Empty;
         public string InputTypes { get => _inputTypes; set { _inputTypes = value; PropertyChanged?.Invoke(this, new(nameof(InputTypes))); } }
@@ -140,26 +132,7 @@ namespace IOApp.Pages
         private string _fileCountText = string.Empty;
         public string FileCountText { get => _fileCountText; set { _fileCountText = value; PropertyChanged?.Invoke(this, new(nameof(FileCountText))); } }
 
-        private bool _isCanvasDrawing = false;
-        private Color _color = Colors.Blue;
 
-        private Shape _shape;
-        private Shape _cursorShape;
-
-
-        private Windows.Foundation.Point _startPoint;
-        private List<Windows.Foundation.Point> _polylinePoints = new();
-
-        private int _currentRevision = 0;
-        private static readonly List<System.Drawing.Bitmap> _imageHistory = new();
-        private static readonly List<Mat> _maskHistory = new();
-
-        private Mat _currentMask;
-        private string _originalImage;
-        private Mat _mask;
-        private Mat _inpaintedImage;
-        private Mat _sourceImage;
-        private Mat _canvasImage = new();
 
         public Main()
         {
@@ -214,7 +187,7 @@ namespace IOApp.Pages
                 endAction?.Invoke(status);
 
                 if (start && FileItems.Count > 0)
-                    FileListView.SelectedIndex = 0;
+                    FileGridView.SelectedIndex = 0;
             });
 
             IProgress<List<ThumbnailItem>> itemProgress = new Progress<List<ThumbnailItem>>(items =>
@@ -258,6 +231,13 @@ namespace IOApp.Pages
                                             {
                                                 items.Add(new() { InputInfo = new(path) });
                                             }
+
+                                            //lock (DBManager.Inst.Locker)
+                                            //{
+                                            //    AppDbContext.Inst.Files.Add(new(path));
+
+                                            //    AppDbContext.Inst.SaveChanges();
+                                            //}
                                         }
                                         else throw new();
                                     }
@@ -288,316 +268,10 @@ namespace IOApp.Pages
             });
         }
 
-        private void RefreshPreviewBox()
-        {
-            PreviewBox.Visibility = Visibility.Visible;
-
-            System.Drawing.SizeF maxPreviewSize = new(0, 0);
-
-            maxPreviewSize = Utils.GetMaxContainSize((float)_sourceImage.Width, (float)_sourceImage.Height, (float)PreviewBox.ActualWidth, (float)PreviewBox.ActualHeight);
-
-            PreviewImage.Width = maxPreviewSize.Width;
-            PreviewImage.Height = maxPreviewSize.Height;
-
-            CanvasDrawing.Width = maxPreviewSize.Width;
-            CanvasDrawing.Height = maxPreviewSize.Height;
-
-            var size = new Size(CanvasDrawing.Width, CanvasDrawing.Height);
-            Cv2.Resize(_sourceImage, _canvasImage, size, (double)InterpolationFlags.LinearExact);
-
-            System.Drawing.Bitmap bitmap = MatToBitmap(_canvasImage);
-            var bitmapImage = Utils.ConvertBitmapToBitmapImage(bitmap);
-            PreviewImage.Source = _currentBitmapImage = bitmapImage;
-
-            _imageHistory.Add(bitmap);
-            _maskHistory.Add(new Mat(_canvasImage.Size(), MatType.CV_8U, -1));
-            _currentRevision = 0;
-        }
-
-        #region DRAWING_CANVAS
-
-        private void Draw(ShapeType shape, Windows.Foundation.Point point)
-        {
-            if (shape == ShapeType.Line)
-            {
-                if (point == _startPoint)
-                {
-                    _polylinePoints = new();
-                    _shape = new Polyline()
-                    {
-                        Stroke = new SolidColorBrush(_color),
-                        StrokeThickness = SliderThickness.Value,
-                        StrokeEndLineCap = PenLineCap.Round,
-                        StrokeStartLineCap = PenLineCap.Round,
-                        StrokeLineJoin = PenLineJoin.Round,
-                        Opacity = 0.4,
-                    };
-                    CanvasDrawing.Children.Add(_shape);
-                }
-
-                (_shape as Polyline).Points.Add(point);
-                _polylinePoints.Add(new Windows.Foundation.Point(point.X, point.Y));
-            }
-            else if (shape == ShapeType.Rectangle)
-            {
-                double x, y;
-
-                if (point == _startPoint)
-                {
-                    _shape = new Rectangle()
-                    {
-                        Stroke = new SolidColorBrush(_color),
-                        Fill = new SolidColorBrush(_color),
-                        Opacity = 0.4,
-                    };
-
-                    x = _startPoint.X;
-                    y = _startPoint.Y;
-
-                    CanvasDrawing.Children.Add(_shape);
-                }
-                else
-                {
-                    x = Math.Min(point.X, _startPoint.X);
-                    y = Math.Min(point.Y, _startPoint.Y);
-
-                    _shape.Width = Math.Max(point.X, _startPoint.X) - x;
-                    _shape.Height = Math.Max(point.Y, _startPoint.Y) - y;
-                }
-
-                Canvas.SetLeft(_shape, x);
-                Canvas.SetTop(_shape, y);
-            }    
-            else
-            {
-                double x, y;
-
-                if (point == _startPoint)
-                {
-                    _shape = new Ellipse()
-                    {
-                        Stroke = new SolidColorBrush(_color),
-                        Fill = new SolidColorBrush(_color),
-                        Opacity = 0.4,
-                    };
-
-                    x = _startPoint.X;
-                    y = _startPoint.Y;
-
-                    CanvasDrawing.Children.Add(_shape);
-                }
-                else
-                {
-                    x = Math.Min(point.X, _startPoint.X);
-                    y = Math.Min(point.Y, _startPoint.Y);
-
-                    var w = Math.Max(point.X, _startPoint.X) - x;
-                    var h = Math.Max(point.Y, _startPoint.Y) - y;
-
-                    _shape.Width = w;
-                    _shape.Height = h;
-                }
-
-                Canvas.SetLeft(_shape, x);
-                Canvas.SetTop(_shape, y);
-            }    
-        }    
-
-        private void Canvas_PointerPressed(object sender, PointerRoutedEventArgs e)
-        {
-            _isCanvasDrawing = true;
-            _startPoint = e.GetCurrentPoint(CanvasDrawing).Position;
-            Draw((ShapeType)ShapeButton.Tag, _startPoint);
-        }
-
-       
-        private void Canvas_PointerMoved(object sender, PointerRoutedEventArgs e)
-        {
-            var point = e.GetCurrentPoint(CanvasDrawing).Position;
-
-            if ((ShapeType)ShapeButton.Tag == ShapeType.Line)
-            {
-                if (_cursorShape == null)
-                {
-                    _cursorShape = new Ellipse();
-                    _cursorShape.Opacity = 0.4;
-
-                    CanvasDrawing.Children.Add(_cursorShape);
-                }
-                _cursorShape.Width = SliderThickness.Value;
-                _cursorShape.Height = SliderThickness.Value;
-                _cursorShape.Fill = new SolidColorBrush(_color);
-
-                Canvas.SetLeft(_cursorShape, point.X - SliderThickness.Value / 2);
-                Canvas.SetTop(_cursorShape, point.Y - SliderThickness.Value / 2);
-            }
-
-            var isPointerOutside = point.X <= 0 || point.Y <= 0 || point.X >= CanvasDrawing.ActualWidth || point.Y >= CanvasDrawing.ActualHeight;
-
-            if ( isPointerOutside )
-            {
-                CanvasDrawing.Children.Remove(_cursorShape);
-                _cursorShape = null;
-            }
-
-            if (_isCanvasDrawing)
-            {
-                if (isPointerOutside)
-                {
-                    _isCanvasDrawing = false;
-
-                    if (_startPoint != point)
-                        InpaintImage(point);
-                }
-                else
-                    Draw((ShapeType)ShapeButton.Tag, point);
-            }
-        }
-
-        private void Canvas_PointerReleased(object sender, PointerRoutedEventArgs e)
-        {
-            _isCanvasDrawing = false;
-
-            if (_startPoint != e.GetCurrentPoint(CanvasDrawing).Position)
-            InpaintImage(e.GetCurrentPoint(CanvasDrawing).Position);
-        }
-
-        #endregion
-
         public void SelectIndex(int index)
         {
-            FileListView.SelectedIndex = index;
+            FileGridView.SelectedIndex = index;
         }    
-
-        public void SelectItem(ThumbnailItem item)
-        {
-            if (!Utils.IsExistFileOrDirectory(item.InputFilePath))
-            {
-                RemoveMany(new() { item }, false);
-                return;
-            }
-
-            Status = StatusType.Loading;
-
-            item.LoadImageCacheIfNotExist(true, new Progress<int>((int cacheImageLevel) =>
-            {
-                if (cacheImageLevel > 0)
-                {
-                    if (FileListView.SelectedItem is not ThumbnailItem currentItem) return;
-
-                    if (item == currentItem)
-                    {
-                        _imageHistory.Clear();
-                        _maskHistory.Clear();
-                        _currentRevision = 0;
-
-                        CurrentItem = item;
-                        _sourceImage = new Mat(item.CacheImagePath);
-                        _originalImage = item.CacheImagePath;
-
-                        RefreshPreviewBox();
-
-                        EnableControlButton(PrevButton);
-                        EnableControlButton(NextButton);
-
-                        FileCountText = FileItems.Count > 0 && FileListView.SelectedIndex >= 0 ? $"{FileListView.SelectedIndex + 1}/{FileItems.Count}" : "-/-";
-
-                        Status = StatusType.Loaded;
-
-                        GC.Collect();
-                    }
-                }
-                else
-                {
-                    PreviewImage.Source = _currentBitmapImage = null;
-                    CurrentItem = null;
-                    Status = StatusType.LoadFailed;
-                }
-            }));
-        }
-
-        public void RemoveMany(List<ThumbnailItem> items, bool doDelete)
-        {
-            FileListView.SelectionChanged -= FileListView_SelectionChanged;
-
-            var selectedIndex = FileListView.SelectedIndex;
-
-            foreach (var i in items)
-            {
-                var removedIndex = FileItems.IndexOf(i);
-
-                var oldSelectedIndex = selectedIndex;
-                var newSelectedIndex = selectedIndex;
-
-                if (FileItems.Count > 1)
-                {
-                    if (oldSelectedIndex == removedIndex)
-                    {
-                        if (oldSelectedIndex == FileItems.Count - 1)
-                            newSelectedIndex = oldSelectedIndex - 1;
-                    }
-                    else if (oldSelectedIndex > removedIndex)
-                        newSelectedIndex--;
-
-                    selectedIndex = newSelectedIndex;
-                }
-
-                FileItems.Remove(i);
-                Utils.DeleteFileOrDirectory(i.CacheImagePath);
-
-                if (doDelete)
-                    Utils.DeleteFileOrDirectory(i.InputFilePath);
-
-                i.Dispose();
-            }
-
-            FileListView.SelectionChanged += FileListView_SelectionChanged;
-
-            if (FileItems.Count > 0)
-                FileListView.SelectedIndex = selectedIndex;
-
-            GC.Collect();
-        }
-
-        public void RemoveAll()
-        {
-            _currentBitmapImage = null;
-            PreviewImage.Source = null;
-            CurrentItem = null;
-
-            foreach(var i in FileItems)
-                Utils.DeleteFileOrDirectory(i.CacheImagePath);
-
-            FileItems.Clear();
-        }
-
-        public async void SaveFile(ThumbnailItem item)
-        {
-            try
-            {
-                item.LoadBasicInfoIfNotExist();
-
-                var saveFileDialog = new ContentDialog() { XamlRoot = XamlRoot };
-                saveFileDialog.PreviewKeyDown += (object sender, KeyRoutedEventArgs e) =>
-                {
-                    e.Handled = e.Key == VirtualKey.Escape;
-                };
-
-                item.OutputThumbnail = Utils.ConvertBitmapToBitmapImage(_imageHistory[_currentRevision]);
-                item.Mask = _currentMask;
-                item.SourceImage = _sourceImage;
-                item.InpaintedImage = _inpaintedImage;
-    
-                saveFileDialog.Content = new SaveSettings(saveFileDialog) { Item = item };
-                _ = await saveFileDialog.ShowAsync();
-            }
-            catch (MissingLibException mle)
-            {
-                if (mle.Message == "eps")
-                    MainWindow.Inst.ShowMissingLibDialog();
-            }
-            catch { }
-        }
 
         public async void OpenInputPicker(Action startAction = null, Action<StatusType> endAction = null, Action<List<ThumbnailItem>> itemAction = null)
         {
@@ -626,11 +300,11 @@ namespace IOApp.Pages
             OpenInputPicker();
         }
 
-        private void FileListView_ContainerContentChanging(ListViewBase sender, ContainerContentChangingEventArgs args)
+        private void FileGridView_ContainerContentChanging(ListViewBase sender, ContainerContentChangingEventArgs args)
         {
             if (!args.InRecycleQueue)
             {
-                var item = FileItems[args.ItemIndex];
+                if (args.Item is not ThumbnailItem item) return;
                 try
                 {
                     item.LoadBasicInfoIfNotExist();
@@ -639,60 +313,94 @@ namespace IOApp.Pages
             }
         }
 
+        private void MediaControl_OnPlay(object sender, RoutedEventArgs e)
+        {
+            if ((sender as FrameworkElement)?.DataContext is not ThumbnailItem item) return;
+
+            MainWindow.Inst.SetCurrentNavigationViewItem(typeof(RemoveObject).ToString(), item);
+        }
+
+        private void MediaControl_OnRemove(object sender, RoutedEventArgs e)
+        {
+            if ((e.OriginalSource as Control).Tag is not string tag) return;
+            if ((sender as FrameworkElement)?.DataContext is not ThumbnailItem item) return;
+
+            //lock (DBManager.Inst.Locker)
+            //{
+            //    var file = AppDbContext.Inst.Files.FirstOrDefault(i => i.Path == item.InputFilePath);
+            //    if (file != null)
+            //    {
+            //        try
+            //        {
+            //            AppDbContext.Inst.Files.Remove(file);
+            //            AppDbContext.Inst.SaveChanges();
+
+            //            FileItems.Remove(item);
+            //        }
+            //        catch { }
+            //    }
+            //}
+        }
+
+        public static void RemoveMany<T>(
+            Collection<T> itemList,
+            int parentSelectedIndex,
+            IEnumerable<T> items,
+            bool doDelete,
+
+            Action pageAction = null,
+            Action<int> selectIndexAction = null)
+        {
+            var selectedIndex = parentSelectedIndex;
+
+            foreach (var item in items)
+            {
+                var removedIndex = itemList.IndexOf(item);
+
+                var oldSelectedIndex = selectedIndex;
+                var newSelectedIndex = selectedIndex;
+
+                if (itemList.Count > 1)
+                {
+                    if (oldSelectedIndex == removedIndex)
+                    {
+                        if (oldSelectedIndex == itemList.Count - 1)
+                            newSelectedIndex = oldSelectedIndex - 1;
+                    }
+                    else if (oldSelectedIndex > removedIndex)
+                        newSelectedIndex--;
+
+                    selectedIndex = newSelectedIndex;
+                }
+
+                pageAction?.Invoke();
+
+                itemList.Remove(item);
+
+                if (doDelete)
+                {
+                    if (item is ThumbnailItem thumbnail)
+                        Utils.DeleteFileOrDirectory(thumbnail.CacheImagePath);
+                }
+            }
+
+            if (itemList.Count > 0)
+                selectIndexAction?.Invoke(selectedIndex);
+
+            GC.Collect();
+        }
+
+        private void Item_DoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
+        {
+            if ((sender as FrameworkElement)?.DataContext is not ThumbnailItem item) return;
+
+            MainWindow.Inst.SetCurrentNavigationViewItem(typeof(RemoveObject).ToString(), Tuple.Create(FileItems.ToList(), FileItems.IndexOf(item)));
+        }
+
         private void FileListView_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             if ((sender as ListView).SelectedItem is not ThumbnailItem item) return;
-
-            try
-            {
-                item.LoadBasicInfoIfNotExist();
-                SelectItem(item);
-            }
-            catch (MissingLibException mle)
-            {
-                if (mle.Message == "eps")
-                    MainWindow.Inst.ShowMissingLibDialog();
-            }
-            catch { }
-        }
-
-        private void MenuItemButton_Click(object sender, RoutedEventArgs e)
-        {
-            if ((sender as FrameworkElement).DataContext is not ThumbnailItem item) return;
-            if ((sender as FrameworkElement).Tag is not string tag) return;
-
-            if (tag == "RevealInFileExplorer")
-                Utils.RevealInFileExplorer(item.InputFilePath);
-            else if (tag == "OpenWith")
-                Utils.OpenFileWithDefaultApp(item.InputFilePath);
-            else if (tag == "Remove" || tag == "Delete")
-                RemoveMany(new() { item }, tag == "Delete");
-        }
-
-        private void PreviewBox_SizeChanged(object sender, SizeChangedEventArgs e)
-        {
-            if (_currentBitmapImage != null)
-                RefreshPreviewBox();
-        }
-
-        private void ControlButton_Click(object sender, RoutedEventArgs e)
-        {
-            if (sender is not Control control) return;
-
-            if (control == SaveButton)
-            {
-                if (Utils.Any(_status, StatusType.Loading, StatusType.Processing)) return;
-                if (FileListView.SelectedItem is not ThumbnailItem item) return;
-                SaveFile(item);
-            }
-            else if (control == PrevButton)
-            {
-                if (FileListView.SelectedIndex > 0) FileListView.SelectedIndex--;
-            }
-            else if (control == NextButton)
-            {
-                if (FileListView.SelectedIndex < FileItems.Count - 1) FileListView.SelectedIndex++;
-            }
+            item.LoadBasicInfoIfNotExist();
         }
 
         private void KeyboardAccelerator_Invoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
@@ -704,144 +412,12 @@ namespace IOApp.Pages
             {
                 switch (e.Key)
                 {
-                    case VirtualKey.Z:
-                        Undo("Undo");
-                        break;
-                    case VirtualKey.U:
-                        Undo("Redo");
-                        break;
-                    case VirtualKey.S:
-                        if (FileListView.SelectedItem is not ThumbnailItem item) return;
-                        SaveFile(item);
-                        break;
                     case VirtualKey.O:
                         OpenInputPicker();
                         break;
                 }
             }
-            else
-            {
-                switch (e.Key)
-                {
-                    case VirtualKey.Up:
-                    case VirtualKey.Left:
-                        if (FileListView.SelectedIndex > 0) FileListView.SelectedIndex--;
-                        break;
-                    case VirtualKey.Down:
-                    case VirtualKey.Right:
-                        if (FileListView.SelectedIndex < FileItems.Count - 1) FileListView.SelectedIndex++;
-                        break;
-                    case VirtualKey.Add:
-                        SliderThickness.Value += 5;
-                        _cursorShape.Width = SliderThickness.Value;
-                        _cursorShape.Height = SliderThickness.Value;
-                        break;
-                    case VirtualKey.Subtract:
-                        SliderThickness.Value -= 5;
-                        _cursorShape.Width = SliderThickness.Value;
-                        _cursorShape.Height = SliderThickness.Value;
-                        break;
-                }
-            }
         }
-
-        //INPAINT
-
-        private void ColorPicker_ColorChanged(ColorPicker sender, ColorChangedEventArgs args)
-        {
-            SetColor.Background = new SolidColorBrush(args.NewColor);
-            _color = args.NewColor;
-        }
-
-        private void InpaintImage(Windows.Foundation.Point endPoint)
-        {
-            _mask = new Mat(_canvasImage.Size(), MatType.CV_8U, -1);
-            _inpaintedImage = new Mat();
-
-            var shape = (ShapeType)ShapeButton.Tag;
-
-            if (shape == ShapeType.Line)
-            {
-                List<IEnumerable<Point>> polylines = new() { _polylinePoints.Select(i => new Point(i.X, i.Y)) };
-                Cv2.Polylines(_mask, polylines, false, Scalar.White, (int)SliderThickness.Value);
-                CanvasDrawing.Children.Remove(_shape);
-            }
-            else if (shape == ShapeType.Rectangle)
-            {
-                Cv2.Rectangle(_mask, new(_startPoint.X, _startPoint.Y), new(endPoint.X, endPoint.Y), Scalar.White, -1);
-                CanvasDrawing.Children.Remove(_shape);
-            }
-            else if (shape == ShapeType.Ellipse)
-            {
-                var ellipse = _shape as Ellipse;
-
-                var centerPoint = new Point((_startPoint.X + endPoint.X) / 2, (_startPoint.Y + endPoint.Y) / 2);
-                var size = new Size(ellipse.Width / 2, ellipse.Height / 2);
-                Cv2.Ellipse(_mask, centerPoint, size, 0, 0, 360, Scalar.White, -1);
-                CanvasDrawing.Children.Remove(ellipse);
-            }
-
-            Cv2.Inpaint(_canvasImage, _mask, _inpaintedImage, 30, InpaintMethod.NS);
-            if (_currentMask == null)
-                _currentMask = _mask;
-            else
-            {
-                if (_currentMask.Size() != _mask.Size())
-                    _currentMask = _mask;
-                _currentMask = _currentMask + _mask;
-            }
-
-            System.Drawing.Bitmap bitmap = MatToBitmap(_inpaintedImage);
-            var bitmapImage = Utils.ConvertBitmapToBitmapImage(bitmap);
-            PreviewImage.Source = bitmapImage;
-
-            _canvasImage = BitmapToMat(bitmap);
-
-            if (_currentRevision != _imageHistory.Count - 1)
-            {
-                for (var i = _imageHistory.Count - 1; i > _currentRevision; i--)
-                {
-                    _imageHistory.RemoveAt(i);
-                    _maskHistory.RemoveAt(i);
-                }
-            }
-
-            _currentRevision++;
-
-            _maskHistory.Add(_currentMask);
-            _imageHistory.Add(bitmap);
-            _currentBitmapImage = bitmapImage;
-        }
-
-        private void Undo(string tag)
-        {
-            if (Utils.Any(_status, StatusType.Loading, StatusType.Processing)) return;
-
-            if (tag == "Undo")
-            {
-                if (_currentRevision == 0) return;
-                else if (_currentRevision >= 1) _currentRevision--;
-            }
-            else if (tag == "Redo")
-            {
-                if (_currentRevision == _imageHistory.Count - 1) return;
-                else _currentRevision++;
-            }
-
-            PreviewImage.Source = _currentBitmapImage = Utils.ConvertBitmapToBitmapImage(_imageHistory[_currentRevision]);
-                _currentMask = _maskHistory[_currentRevision];
-            _canvasImage = BitmapToMat(_imageHistory[_currentRevision]);
-        }    
-
-        private void UndoButton_Click(object sender, RoutedEventArgs e)
-        {
-            if ((sender as FrameworkElement)?.Tag is not string tag) return;
-            Undo(tag);
-        }
-
-        public static System.Drawing.Bitmap MatToBitmap(Mat image) => OpenCvSharp.Extensions.BitmapConverter.ToBitmap(image);
-
-        public static Mat BitmapToMat(System.Drawing.Bitmap bitmap) => OpenCvSharp.Extensions.BitmapConverter.ToMat(bitmap);
 
         #region DRAP_DROP_FILES
 
@@ -906,37 +482,16 @@ namespace IOApp.Pages
 
                 EnableAllControlButtons();
 
-                FileCountText = FileItems.Count > 0 && FileListView.SelectedIndex >= 0 ? $"{FileListView.SelectedIndex + 1}/{FileItems.Count}" : $"{FileItems.Count}";
+                FileCountText = FileItems.Count > 0 && FileGridView.SelectedIndex >= 0 ? $"{FileGridView.SelectedIndex + 1}/{FileItems.Count}" : $"{FileItems.Count}";
             };
 
             FileItems.CollectionChanged += (object sender, NotifyCollectionChangedEventArgs e) => fileItemsCollectionChangedAction();
             fileItemsCollectionChangedAction();
 
-            //
-
-            SHAPES = new()
-            {
-                { ShapeType.Line,      LineShapeMenuFlyoutItem },
-                { ShapeType.Rectangle, RectangleShapeMenuFlyoutItem },
-                { ShapeType.Ellipse,   EllipseShapeMenuFlyoutItem }
-            };
-
-            LineShapeMenuFlyoutItem.Text = "Pen";
-            LineShapeMenuFlyoutItem.Icon = new FontIcon() { Glyph = "\uED63" };
-            LineShapeMenuFlyoutItem.Tag = ShapeType.Line;
-
-            RectangleShapeMenuFlyoutItem.Text = "Rectangle";
-            RectangleShapeMenuFlyoutItem.Icon = new FontIcon() { Glyph = "\uE7FB" };
-            RectangleShapeMenuFlyoutItem.Tag = ShapeType.Rectangle;
-
-            EllipseShapeMenuFlyoutItem.Text = "Ellipse";
-            EllipseShapeMenuFlyoutItem.Icon = new FontIcon() { Glyph = "\uEA3A" };
-            EllipseShapeMenuFlyoutItem.Tag = ShapeType.Ellipse;
-
-            LineShapeMenuFlyoutItem.IsChecked = true;
-
-            ShapeButton.Icon = ((SHAPES[ShapeType.Line] as RadioMenuFlyoutItem).Icon as FontIcon).Glyph;
-            ShapeButton.Tag = ShapeType.Line;
+            //lock (DBManager.Inst.Locker)
+            //{
+            //    AddFiles(AppDbContext.Inst.Files.Select(i => i.Path).ToList());
+            //}
         }
 
         #endregion
@@ -944,21 +499,10 @@ namespace IOApp.Pages
         private void EnableControlButton(Control control)
         {
             var processing = Utils.Any(_status, StatusType.Loading, StatusType.Processing);
-
-            if (control == SaveButton)
-                control.IsEnabled = !processing && FileItems.Count > 0 && FileListView.SelectedIndex >= 0;
-            else if (control == PrevButton)
-                control.IsEnabled = !processing && FileItems.Count > 0 && FileListView.SelectedIndex > 0;
-            else if (control == NextButton)
-                control.IsEnabled = !processing && FileItems.Count > 0 && FileListView.SelectedIndex < FileItems.Count - 1;
         }
 
         private void EnableAllControlButtons()
         {
-            EnableControlButton(SaveButton);
-
-            EnableControlButton(PrevButton);
-            EnableControlButton(NextButton);
         }
 
         private void ConfirmButton_Click(object sender, RoutedEventArgs e)
@@ -969,61 +513,16 @@ namespace IOApp.Pages
             string subTitle = null;
             Action action = null;
 
-            if (control == RemoveAllButton)
-            {
-                title = _resourceLoader.GetString("ClearItemList");
-                action = () =>
-                {
-                    RemoveAll();
-                };
-            }
+            //if (control == RemoveAllButton)
+            //{
+            //    title = _resourceLoader.GetString("ClearItemList");
+            //    action = () =>
+            //    {
+            //        RemoveAll();
+            //    };
+            //}
 
             MainWindow.Inst.ShowConfirmTeachingTip(sender, title, subTitle, action);
-        }
-
-        private void ShapeButton_Click(object sender, RoutedEventArgs e)
-        {
-            if (sender is not Control control) return;
-
-            ShapeButton.Icon = ((control as RadioMenuFlyoutItem).Icon as FontIcon).Glyph;
-            ShapeButton.Tag = (control as RadioMenuFlyoutItem).Tag;
-
-            if ((ShapeType)ShapeButton.Tag == ShapeType.Line)
-                Slider.Visibility = Visibility.Visible;
-            else
-                Slider.Visibility = Visibility.Collapsed;
-        }
-
-        private void AnimeMakerButton_Click(object sender, RoutedEventArgs e)
-        {
-            //ImageSource
-            Mat originalImage = new Mat();
-            originalImage = Cv2.ImRead(_originalImage);
-            //Cv2.CvtColor(originalImage, originalImage, ColorConversionCodes.BGR2RGB);
-
-            //GreyScale
-            Mat grayScaleImage = new Mat();
-            Cv2.CvtColor(originalImage, grayScaleImage, ColorConversionCodes.BGR2GRAY);
-
-            //Smoothening
-            Mat smoothGrayScale = new Mat();
-            Cv2.MedianBlur(grayScaleImage, smoothGrayScale, 21);
-
-            //Retrieve Edges
-            Mat getEdge = new Mat();
-            Cv2.AdaptiveThreshold(smoothGrayScale, getEdge, 255, AdaptiveThresholdTypes.MeanC, ThresholdTypes.Binary, 15, 5);
-
-            //Mask Image
-            Mat colorImage = new Mat();
-            Cv2.BilateralFilter(originalImage, colorImage, 9, 300, 300);
-
-            //Cartoon Effect
-            Mat cartoonImage = new Mat();
-            Cv2.BitwiseAnd(colorImage, colorImage, cartoonImage, getEdge);
-
-            System.Drawing.Bitmap bitmap = MatToBitmap(cartoonImage);
-            var bitmapImage = Utils.ConvertBitmapToBitmapImage(bitmap);
-            PreviewImage.Source = bitmapImage;
         }
     }
 }

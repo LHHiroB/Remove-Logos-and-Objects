@@ -1,0 +1,42 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<iocore:IODialog
+    xmlns:iocore="using:IOCore"
+    x:Class="IOApp.Dialogs.PropertiesDialog"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:coreLibs="using:IOCore.Libs"
+    xmlns:coreControls="using:IOCore.Controls"
+    mc:Ignorable="d"
+>
+    <Grid Width="520">
+        <StackPanel Padding="10">
+            <TextBlock Text="{coreLibs:SRE K=Features_FileInfo}" FontSize="11" FontWeight="Bold"/>
+            <StackPanel Margin="0,10,0,0" Spacing="5">
+                <StackPanel>
+                    <TextBlock FontSize="11" Foreground="{ThemeResource Foreground2}" Text="{coreLibs:SRE K=Features_Name}"/>
+                    <TextBlock FontSize="12" Text="{Binding CurrentItem.InputFilePath, ConverterParameter=fileName, Converter={StaticResource FilePathConverter}}"/>
+                </StackPanel>
+                <StackPanel>
+                    <TextBlock FontSize="11" Foreground="{ThemeResource Foreground2}" Text="{coreLibs:SRE K=Features_MimeType}"/>
+                    <StackPanel Orientation="Horizontal" Spacing="5">
+                        <TextBlock FontSize="12" Text="{Binding CurrentItem.InputMimeType}"/>
+                        <TextBlock FontSize="12" Text="{Binding CurrentItem.InputFilePath, ConverterParameter=extension, Converter={StaticResource FilePathConverter}}"/>
+                    </StackPanel>
+                </StackPanel>
+                <StackPanel>
+                    <TextBlock FontSize="11" Foreground="{ThemeResource Foreground2}" Text="{coreLibs:SRE K=Features_FileSize}"/>
+                    <TextBlock FontSize="12" Text="{Binding CurrentItem.InputSize, Converter={StaticResource FileSizeToSizeStringConverter}}"/>
+                </StackPanel>
+                <StackPanel>
+                    <TextBlock FontSize="11" Foreground="{ThemeResource Foreground2}" Text="{coreLibs:SRE K=Features_Dimension}"/>
+                    <TextBlock FontSize="12" Text="{Binding CurrentItem.InputDimensionText}"/>
+                </StackPanel>
+            </StackPanel>
+        </StackPanel>
+
+        <coreControls:IconButton Icon="&#xE711;" IsSquare="True" Corner="None" Variant="Text" Click="CloseButton_Click"
+                                 VerticalAlignment="Top" HorizontalAlignment="Right"/>
+    </Grid>
+</iocore:IODialog>

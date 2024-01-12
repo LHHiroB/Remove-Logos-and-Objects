@@ -15,7 +15,6 @@ namespace IOCore.Libs
         {
             UsingSystemSetting,
             EnUs,
-            JaJp,
             ViVn
         }
 
@@ -23,7 +22,6 @@ namespace IOCore.Libs
         {
             { Culture.UsingSystemSetting,   new(string.Empty,   "Settings_LanguageUsingSystemSetting",    true) },
             { Culture.EnUs,                 new("en-US",        "Settings_LanguageEnUs",                  true) },
-            { Culture.JaJp,                 new("ja-JP",        "Settings_LanguageJaJp",                  false) },
             { Culture.ViVn,                 new("vi-VN",        "Settings_LanguageViVn",                  false) },
         };
 

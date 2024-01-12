@@ -7,6 +7,7 @@ using IOApp.Pages;
 using IOCore.Libs;
 using IOCore;
 using IOApp.Configs;
+using IOApp.Features;
 
 // To learn more about WinUI, the WinUI project structure,
 // and more about our project templates, see: http://aka.ms/winui-project-info.
@@ -41,6 +42,15 @@ namespace IOApp
 
         private void Root_Loaded(object sender, RoutedEventArgs e)
         {
+            DBManager.Inst.InitAsync(new AppDbContext(), new Progress<bool>(_ =>
+            {
+                if (PageNavigationView.IsLoaded)
+                {
+                    Status = StatusType.Ready;
+
+                    SetCurrentNavigationViewItem(typeof(Main).ToString());
+                }
+            }));
         }
 
         public async void ShowMissingLibDialog()

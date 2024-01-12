@@ -15,7 +15,7 @@
   <mp:PhoneIdentity PhoneProductId="7e6bd226-7e49-49f6-8e22-c4a9d3f5e45b" PhonePublisherId="00000000-0000-0000-0000-000000000000"/>
 
   <Properties>
-    <DisplayName>Universal Image Converter</DisplayName>
+    <DisplayName>Remove Logos And Objects</DisplayName>
     <PublisherDisplayName>HuyAndHieu</PublisherDisplayName>
     <Logo>Images\StoreLogo.png</Logo>
   </Properties>
@@ -37,7 +37,7 @@
       EntryPoint="$targetentrypoint$">
       <uap:VisualElements
         DisplayName="Remove Logos &amp; Objects"
-        Description="UniversalImageConverter (Package)"
+        Description="RemoveLogos&amp;Objects (Package)"
         BackgroundColor="transparent"
         Square150x150Logo="Images\Square150x150Logo.png"
         Square44x44Logo="Images\Square44x44Logo.png">

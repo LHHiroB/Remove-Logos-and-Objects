@@ -6,18 +6,15 @@ using Microsoft.UI.Xaml.Data;
 using Microsoft.UI.Xaml.Markup;
 using Microsoft.UI.Xaml.Media;
 using System;
+using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 
 namespace IOCore.Libs
 {
-    public class DataGridRowToIndexConverter : MarkupExtension, IValueConverter
+    public class ValueConverterGroup : List<IValueConverter>, IValueConverter
     {
-        public object Convert(object value, Type targetType, object parameter, string culture)
-        {
-            if (value is not DataGridRow v) return -1;
-            return v.GetIndex();
-        }
-
+        public object Convert(object value, Type targetType, object parameter, string culture) => this.Aggregate(value, (current, converter) => converter.Convert(current, targetType, parameter, culture));
         public object ConvertBack(object value, Type targetType, object parameter, string culture) => throw new NotImplementedException();
     }
 
